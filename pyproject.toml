@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=40.8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swmf-vr"
+version = "0.1.0"
+description = "Closed Radiation belt Analysis pipeline: belt boundaries, field-line shells, and shading for VR (consolidated from CRA v1-v6)"
+readme = "README.md"
+requires-python = ">=3.6"
+authors = [{ name = "Connor DiMarco", email = "cdimarco@umich.edu" }]
+dependencies = [
+    "numpy>=1.19",
+    "scipy",
+    "geopack",
+    "matplotlib",
+]
+# NOTE: ParaView is NOT a pip dependency. The field-line tracing layer
+# (swmf_vr.paraview.*) runs only under ParaView's bundled pvbatch (Python 3.10).
+# The pure layer runs under the system python3 (3.6.8 on this cluster); both
+# import the package via PYTHONPATH=src (see slurm/env.sh) -- no install needed.
+# CLI entrypoints live in scripts/ and are run directly (python3 scripts/...),
+# so no console_scripts are declared here.
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,13 @@
+# Oracle checksums frozen 2026-06-08T15:10:19Z -- in-place v5/v6 reference outputs
+# parity timestamps: 20240510_210000 (full), 20240510_130000 (outer header-only), 20240510_170000 (mid)
+f7d17b3c63862fbde3caac3e2b6d6e42  v6/out_seeds_inner/boundary_20240510_210000.csv
+d5dbde9f9b62ee9fc316e0eaf5788753  v6/out_seeds_outer/boundary_20240510_210000.csv
+0dec6668eca08cb755f7afcd92d5d461  v6/out_seeds_danger/boundary_20240510_210000.csv
+0b35dfbcf030e467e5fba9fa5eace54e  v6/out_seeds_outer/boundary_20240510_130000.csv
+657e923a97f469a6ed2bc0318eb8ef70  v6/obj_outer/fieldlines_20240510_210000.obj
+ab18564c2f4822ff9ff574abc2f3edb9  v6/obj_inner/fieldlines_20240510_210000.obj
+e1ee8e629011bac737ce4f54063f3616  v6/obj_max/fieldlines_20240510_210000.obj
+4df1e58b623253676749417c75fe9ee6  v6/obj_outer/ramp.png
+57189e6325bc45ec6ea0e974e1154ff7  v6/obj_outer/material.mtl
+59175047cfc34ca15ea1d438ec99dbe1  v6/obj_outer/colormap.json
+e64cd38d0ccaffe024c62bcb1f9d1c55  v5/gsm_transforms.csv

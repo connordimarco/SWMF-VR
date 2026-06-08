@@ -1,0 +1,32 @@
+CLAUDE.md
+AGENTS.md
+*.sbatch
+*.log
+*.err
+*.out
+
+data/
+results/
+
+# Pipeline outputs (large; never committed)
+obj_*/
+out_seeds_*/
+flux_slices/
+flux_slices_zoom/
+screenshot_renders/
+screenshot*/
+*.npz
+*.plt
+*.png
+*.obj
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Parity scratch
+tests/parity/scratch/
