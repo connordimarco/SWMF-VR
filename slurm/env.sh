@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Source this before running any swmf_vr script, under either runtime:
 #   source slurm/env.sh
-#   python3      "$SWMF_VR_ROOT/scripts/stage_a_flux_seeds.py" ...   # system python 3.6.8
-#   "$PV_BATCH"  "$SWMF_VR_ROOT/scripts/stage_b_render_lines.py" ... # ParaView pvbatch 3.10
+#   python3      "$SWMF_VR_ROOT/scripts/seeds.py" ...   # plain python3
+#   "$PV_BATCH"  "$SWMF_VR_ROOT/scripts/trace.py" ... # pvbatch
 #
 # The package is pure Python with no compiled extensions, so a single PYTHONPATH
 # makes `import swmf_vr` resolve under BOTH the system python3 and pvbatch -- no
