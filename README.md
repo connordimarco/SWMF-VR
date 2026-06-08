@@ -1,10 +1,10 @@
 # SWMF-VR
 
-Turns the radiation-belt sim into 3D field-line shells for the VR app. Connor + Austin.
+Turns the radiation-belt sim into 3D field-line shells for the VR app. 
 
-Given a frame of flux, it finds the belt boundaries (inner / outer / a "danger"
-peak surface), traces the field lines through the GM magnetic field, colors them,
-rotates them into GEI (the frame the VR meshes go out in), and can draw a quick plot.
+Given 2D equatorial cut of flux, we find the belt boundaries (inner / outer / a "danger"
+peak surface), trace the field lines through the GM magnetic field, color them,
+rotate them into GEI (the frame the VR meshes go out in), and can draw a quick plot.
 
 ## Setup
 
