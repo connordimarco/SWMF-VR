@@ -1,17 +1,14 @@
 #!/bin/bash
-#SBATCH --account=tuija98
 #SBATCH --job-name=swmfvr_seeds
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --mem-per-cpu=4g
 #SBATCH --time=12:00:00
-#SBATCH --partition=standard
-#SBATCH --mail-user=cdimarco@umich.edu
 #SBATCH --mail-type=END,FAIL
-#SBATCH --chdir=/nfs/turbo/coe-tuija/shared/connor_austin/CRA/SWMF-VR
-#SBATCH --output=/nfs/turbo/coe-tuija/shared/connor_austin/CRA/SWMF-VR/run/logs/seeds_%x_%j.out
-#SBATCH --error=/nfs/turbo/coe-tuija/shared/connor_austin/CRA/SWMF-VR/run/logs/seeds_%x_%j.err
+#SBATCH --output=run/logs/seeds_%x_%j.out
+#SBATCH --error=run/logs/seeds_%x_%j.err
 #SBATCH --get-user-env
+# account/partition from SBATCH_* (set by .env); chdir/mail passed by submit_all.sh.
 
 # seeds: 2D flux-slice plots + per-surface seed CSVs (system python3, sharded).
 set -euo pipefail

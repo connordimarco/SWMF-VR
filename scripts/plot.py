@@ -10,12 +10,14 @@ see the rotation. Colored by radius.
 
 import os
 import sys
+import json
 import argparse
 import numpy as np
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from matplotlib.cm import get_cmap
 from matplotlib.colors import Normalize
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
@@ -31,15 +33,18 @@ SURFACES = ['obj_inner', 'obj_outer', 'obj_max']
 
 
 def read_obj(path):
-    pts, lines = [], []
+    """points, the per-vertex color coord U (from vt), and the polylines."""
+    pts, us, lines = [], [], []
     with open(path) as f:
         for ln in f:
             if ln.startswith('v '):
                 p = ln.split()
                 pts.append((float(p[1]), float(p[2]), float(p[3])))
+            elif ln.startswith('vt '):
+                us.append(float(ln.split()[1]))
             elif ln.startswith('l '):
                 lines.append(np.array([int(t.split('/')[0]) - 1 for t in ln.split()[1:]], dtype=int))
-    return np.array(pts), lines
+    return np.array(pts), np.array(us), lines
 
 
 def read_R_gei(ts, csv):
@@ -100,26 +105,41 @@ def main():
     from geopack import geopack
     dip_gsm = np.array(geopack.smgsm(0.0, 0.0, 1.0, 1))
 
-    gsm_poly, gei_poly, rad = [], [], []
+    gsm_poly, gei_poly, vals = [], [], []
     for s in SURFACES:
         path = os.path.join(args.gsm_root, s, 'fieldlines_{}.obj'.format(ts))
         if not os.path.exists(path):
             continue
-        pts, lines = read_obj(path)
-        r = np.linalg.norm(pts, axis=1)
+        pts, us, lines = read_obj(path)
         pts_gei = pts @ R.T
         for ln in lines:
-            gsm_poly.append(pts[ln]); gei_poly.append(pts_gei[ln]); rad.append(r[ln])
-    if not rad:
+            gsm_poly.append(pts[ln]); gei_poly.append(pts_gei[ln]); vals.append(us[ln])
+    if not vals:
         print('no shells under {} for {}'.format(args.gsm_root, ts)); return
 
-    norm = Normalize(vmin=1.0, vmax=float(max(rr.max() for rr in rad)))
+    # The OBJ vt.u is already the flux color coordinate in [0,1].
+    meta = {}
+    cj = os.path.join(args.gsm_root, 'obj_outer', 'colormap.json')
+    if os.path.exists(cj):
+        meta = json.load(open(cj))
+    norm = Normalize(vmin=0.0, vmax=1.0)
+
     fig = plt.figure(figsize=(16, 8))
-    draw(fig.add_subplot(121, projection='3d'), gsm_poly, rad, norm,
+    draw(fig.add_subplot(121, projection='3d'), gsm_poly, vals, norm,
          'GSM  (as traced)  {}'.format(ts), basis=np.eye(3), dipole=dip_gsm)
-    draw(fig.add_subplot(122, projection='3d'), gei_poly, rad, norm,
+    draw(fig.add_subplot(122, projection='3d'), gei_poly, vals, norm,
          'GEI  (for VR)', basis=R, dipole=dip_gei)
-    fig.suptitle('Belt shells GSM -> GEI  (axes: red=GSM x->Sun, blue=z; dashed=dipole)', fontsize=12)
+
+    sm = cm.ScalarMappable(norm=norm, cmap='inferno'); sm.set_array([])
+    cb = fig.colorbar(sm, ax=fig.axes, shrink=0.5, pad=0.02)
+    if meta:
+        cb.set_label('{}   U=0 -> {:g},  U=1 -> {:g}{}'.format(
+            meta.get('scalar', 'flux'), meta.get('vmin', 0), meta.get('vmax', 1),
+            ' (log)' if meta.get('log') else ''))
+    else:
+        cb.set_label('flux color (U)')
+    fig.suptitle('Belt shells GSM -> GEI, colored by flux  '
+                 '(axes: red=GSM x->Sun, blue=z; dashed=dipole)', fontsize=12)
     plt.savefig(out, dpi=130, bbox_inches='tight')
     plt.close(fig)
     print('wrote', out)

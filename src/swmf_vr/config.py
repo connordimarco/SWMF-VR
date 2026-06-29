@@ -41,11 +41,14 @@ PLOT_COLORS = {
 _PKG = os.path.dirname(os.path.abspath(__file__))
 _CRA = os.path.dirname(os.path.dirname(os.path.dirname(_PKG)))   # .../CRA
 
-_NPZ = os.path.join(_CRA, 'data', '20240511_170000_e_fls.npz')
-_PLT = '/nfs/turbo/coe-tuija/shared/run_mothersday_ne/GM/IO2'
-_PVBATCH = os.path.join(_CRA, 'tools',
-                        'ParaView-5.12.1-osmesa-MPI-Linux-Python3.10-x86_64',
-                        'bin', 'pvbatch')
+# Paths come from the environment (set by .env via slurm/env.sh); the literals are
+# fallbacks so the package still works if .env wasn't sourced.
+_NPZ = os.environ.get('CIMI_NPZ', os.path.join(_CRA, 'data', '20240511_170000_e_fls.npz'))
+_PLT = os.path.join(
+    os.environ.get('SWMF_RUN_DIR', '/nfs/turbo/coe-tuija/shared/run_mothersday_ne'),
+    'GM', 'IO2')
+_PVBATCH = os.environ.get('PV_BATCH', os.path.join(
+    _CRA, 'tools', 'ParaView-5.12.1-osmesa-MPI-Linux-Python3.10-x86_64', 'bin', 'pvbatch'))
 
 
 class PathConfig(NamedTuple):

@@ -1,31 +1,28 @@
 #!/bin/bash
-#SBATCH --mail-user=cdimarco@umich.edu
-#SBATCH --mail-type=END,FAIL
-#
-# Submit the two steps as a dependent chain:
+# Submit the belt-shell pipeline as a dependent chain (run on the login node):
 #   1. seeds (submit_seeds.sh)  -- system python3: flux plots + seed CSVs
-#   2. trace (submit_trace.sh) -- pvbatch: field-line OBJ shells + screenshots
-# trace waits for seeds (afterok). Output root: $OUT_ROOT (default run/).
+#   2. trace (submit_trace.sh)  -- pvbatch: field-line OBJ shells + screenshots
+# trace waits for seeds (afterok). Reads .env via env.sh: account/partition come
+# through SBATCH_*, chdir/mail are passed on the sbatch line.
 #
-# Usage: ./submit_all.sh
-set -e
+#   ./slurm/submit_all.sh
+set -euo pipefail
 
-if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
-    SCRIPT_DIR="$SLURM_SUBMIT_DIR"
-else
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$SCRIPT_DIR/slurm/env.sh"
+
+common=(--chdir="$SWMF_VR_ROOT")
+[[ -n "${SWMFVR_MAIL:-}" ]] && common+=(--mail-user="$SWMFVR_MAIL")
 
 echo "Submitting seeds..."
-SEEDS_JOB=$(sbatch --parsable "$SCRIPT_DIR/submit_seeds.sh")
+SEEDS_JOB=$(sbatch --parsable "${common[@]}" "$SWMF_VR_ROOT/slurm/submit_seeds.sh")
 echo "  seeds job: $SEEDS_JOB"
 
 echo "Submitting trace..."
-TRACE_JOB=$(sbatch --parsable --dependency=afterok:$SEEDS_JOB "$SCRIPT_DIR/submit_trace.sh")
+TRACE_JOB=$(sbatch --parsable "${common[@]}" --dependency=afterok:"$SEEDS_JOB" \
+            "$SWMF_VR_ROOT/slurm/submit_trace.sh")
 echo "  trace job: $TRACE_JOB"
 
-echo ""
-echo "Submitted:"
-echo "  1. seeds:  Job $SEEDS_JOB"
-echo "  2. trace: Job $TRACE_JOB (after $SEEDS_JOB)"
+echo
+echo "Submitted:  seeds $SEEDS_JOB  ->  trace $TRACE_JOB"
 echo "Monitor: squeue -u \$USER   Cancel: scancel $SEEDS_JOB $TRACE_JOB"

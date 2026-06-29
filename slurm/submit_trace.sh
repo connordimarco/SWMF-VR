@@ -1,17 +1,14 @@
 #!/bin/bash
-#SBATCH --account=tuija98
 #SBATCH --job-name=swmfvr_trace
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --mem-per-cpu=4g
 #SBATCH --time=24:00:00
-#SBATCH --partition=standard
-#SBATCH --mail-user=cdimarco@umich.edu
 #SBATCH --mail-type=END,FAIL
-#SBATCH --chdir=/nfs/turbo/coe-tuija/shared/connor_austin/CRA/SWMF-VR
-#SBATCH --output=/nfs/turbo/coe-tuija/shared/connor_austin/CRA/SWMF-VR/run/logs/trace_%x_%j.out
-#SBATCH --error=/nfs/turbo/coe-tuija/shared/connor_austin/CRA/SWMF-VR/run/logs/trace_%x_%j.err
+#SBATCH --output=run/logs/trace_%x_%j.out
+#SBATCH --error=run/logs/trace_%x_%j.err
 #SBATCH --get-user-env
+# account/partition from SBATCH_* (set by .env); chdir/mail passed by submit_all.sh.
 
 # trace: trace field-line OBJ shells + colored screenshots (pvbatch, sharded).
 # Three surfaces per timestep -> longer walltime than a single-surface render.
