@@ -25,7 +25,7 @@ common=(--chdir="$SWMF_VR_ROOT")
 
 ARR=$(sbatch --parsable "${common[@]}" \
       --output="$OUT_ROOT/logs/slice_arr_%A_%a.out" "$SCRIPT_DIR/slurm/slice_array.sh")
-echo "slice array: job $ARR  (32 tasks x ~13 GB)"
+echo "slice array: job $ARR  (32 tasks x 24 GB, one process per frame)"
 MOV=$(sbatch --parsable "${common[@]}" --dependency=afterany:"$ARR" \
       --output="$OUT_ROOT/logs/slice_movie_%j.out" "$SCRIPT_DIR/slurm/slice_movie.sh")
 echo "movie:       job $MOV  (after $ARR)  -> $SLICE/movie.mp4"

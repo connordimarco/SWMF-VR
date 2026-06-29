@@ -136,18 +136,26 @@ def process_frame(ts, flux_frame, ro, mlto, bo, ctx, args):
         print('[{}] no .plt -- skip'.format(ts)); return False
     cimi = mapping.CimiEquator(ro, mlto, flux_frame, bo=bo, dmax=args.max_dist)
 
+    seed_csv = os.path.join(ctx.seeds_dir, '_seeds_{}.csv'.format(ts))   # per-frame, collision-free
+    with open(seed_csv, 'w') as f:
+        f.write('Seed_X_Re,Seed_Y_Re,Seed_Z_Re\n')
+        for x, y, z in ctx.seeds:
+            f.write('{:.5f},{:.5f},{:.5f}\n'.format(x, y, z))
+
     reader, b_calc = render.load_b_field(plt_path)
     trace_cfg = ctx.cfg.trace._replace(max_streamline_length=args.max_len)
-    res = render.trace_streamlines(b_calc, ctx.seed_csv, trace_cfg)
+    res = render.trace_streamlines(b_calc, seed_csv, trace_cfg)
     if res is None:
         for pr in (b_calc, reader):
             render.Delete(pr)
+        os.remove(seed_csv)
         print('[{}] trace failed'.format(ts)); return False
     tracer, points_source, csv_reader, poly, _ = res
     b_eq, foot, maxr, b_s = per_seed_fields(poly, ctx.seeds, foot_rmax=args.foot_rmax)
     flux, n_closed, n_mapped, ratios = map_seeds(b_eq, foot, maxr, b_s, cimi, ctx, args)
     for pr in (tracer, points_source, csv_reader, b_calc, reader):
         render.Delete(pr)
+    os.remove(seed_csv)
 
     np.savez(os.path.join(ctx.npz_dir, 'slice_y0_{}_bands.npz'.format(ts)),
              xs=ctx.xs, zs=ctx.zs, flux=np.array(flux), labels=ctx.labels,
@@ -161,9 +169,12 @@ def process_frame(ts, flux_frame, ro, mlto, bo, ctx, args):
 
 
 def main():
+    # ONE frame per process. ParaView accumulates memory across pipeline rebuilds,
+    # so processing a whole shard in one long-lived process OOMs after a few frames
+    # -- the array script (slurm/slice_array.sh) loops and invokes this once per
+    # frame instead, so memory is reclaimed every frame.
     p = argparse.ArgumentParser()
-    p.add_argument('shard', nargs='*', type=int, help='rank size (frames split rank::size)')
-    p.add_argument('--ts', default=None, help='one frame only (default: full sharded run)')
+    p.add_argument('--ts', required=True, help='timestamp YYYYMMDD_HHMMSS (one frame)')
     p.add_argument('--n', type=int, default=121)
     p.add_argument('--extent', type=float, default=10.0)
     p.add_argument('--quantity', choices=['omni', 'perp'], default='omni')
@@ -174,24 +185,25 @@ def main():
     p.add_argument('--out-root', default=os.path.join(REPO, 'run'))
     p.add_argument('--npz', default=None)
     p.add_argument('--plt-dir', default=None)
-    p.add_argument('--force', action='store_true')
     args = p.parse_args()
-    rank, size = (args.shard + [0, 1])[:2]
 
     cfg = config.CRAConfig()
     npz = os.path.abspath(args.npz) if args.npz else cfg.paths.npz_path
     plt_dir = os.path.abspath(args.plt_dir) if args.plt_dir else cfg.paths.plt_dir
 
-    # Grids (small) loaded once; flux streamed per frame. The NPZ 'time' array is
-    # an unreadable object pickle -- frame index == minutes after base (1-min
-    # cadence, confirmed by the .plt names).
+    # frame index == minutes after base (1-min cadence; the NPZ 'time' array is an
+    # unreadable object pickle, but the .plt names confirm the cadence).
+    base_dt = data.base_datetime(cfg.time.base_iso)
+    t = int(round((datetime.datetime.strptime(args.ts, '%Y%m%d_%H%M%S')
+                   - base_dt).total_seconds() / 60.0))
     zf = np.load(npz, allow_pickle=True)
     E_lvls = zf['E_lvls']
     sin_grid = np.asarray(zf['alpha_lvls'], dtype=float)
-    ro_all, mlto_all, bo_all = zf['ro'], zf['mlto'], zf['bo']
+    n_frames = zf['ro'].shape[0]
+    if not (0 <= t < n_frames):
+        zf.close(); print('ts {} -> frame {} out of range'.format(args.ts, t)); return
+    ro, mlto, bo = zf['ro'][t], zf['mlto'][t], zf['bo'][t]
     zf.close()
-    base_dt = data.base_datetime(cfg.time.base_iso)
-    n_frames = ro_all.shape[0]
 
     band_ch = [np.where((E_lvls >= lo) & (E_lvls < hi))[0] for _, lo, hi in BANDS]
     seeds, ij, xs, zs = plane_seeds(args.extent, args.n)
@@ -201,50 +213,14 @@ def main():
     for d in (png_dir, npz_dir, seeds_dir):
         os.makedirs(d, exist_ok=True)
 
-    # Same seeds every frame -> write the seed CSV once per worker (rank-unique).
-    seed_csv = os.path.join(seeds_dir, '_seeds_w{}.csv'.format(rank))
-    with open(seed_csv, 'w') as f:
-        f.write('Seed_X_Re,Seed_Y_Re,Seed_Z_Re\n')
-        for x, y, z in seeds:
-            f.write('{:.5f},{:.5f},{:.5f}\n'.format(x, y, z))
-
     indices_npz = os.path.join(args.out_root, 'slice_renders', 'indices.npz')
     ctx = SimpleNamespace(cfg=cfg, plt_dir=plt_dir, seeds=seeds, ij=ij, xs=xs, zs=zs,
                           band_ch=band_ch, widths=mapping.channel_widths(E_lvls),
                           sin_grid=sin_grid, labels=[b[0] for b in BANDS],
-                          seed_csv=seed_csv, png_dir=png_dir, npz_dir=npz_dir,
+                          seeds_dir=seeds_dir, png_dir=png_dir, npz_dir=npz_dir,
                           indices=indices_npz if os.path.exists(indices_npz) else None)
 
-    def already(ts):
-        png = os.path.join(png_dir, 'slice_y0_{}_bands_{}.png'.format(ts, args.quantity))
-        nz = os.path.join(npz_dir, 'slice_y0_{}_bands.npz'.format(ts))
-        return os.path.exists(png) and os.path.exists(nz)
-
-    try:
-        if args.ts:                                          # single frame
-            t = int(round((datetime.datetime.strptime(args.ts, '%Y%m%d_%H%M%S')
-                           - base_dt).total_seconds() / 60.0))
-            if not (0 <= t < n_frames):
-                print('ts {} -> frame {} out of range'.format(args.ts, t)); return
-            process_frame(args.ts, mapping.read_flux_frame(npz, t),
-                          ro_all[t], mlto_all[t], bo_all[t], ctx, args)
-        else:                                                # full sharded run
-            print('worker {}/{}: full run, n={}, quantity={}'.format(rank, size, args.n, args.quantity))
-            done = 0
-            for t, frame in data.iter_flux_frames(npz):
-                if t >= n_frames:
-                    break
-                if t % size != rank:
-                    continue
-                ts = (base_dt + datetime.timedelta(minutes=t)).strftime('%Y%m%d_%H%M%S')
-                if already(ts) and not args.force:
-                    continue
-                if process_frame(ts, frame, ro_all[t], mlto_all[t], bo_all[t], ctx, args):
-                    done += 1
-            print('worker {}: {} frames'.format(rank, done))
-    finally:
-        if os.path.exists(seed_csv):
-            os.remove(seed_csv)
+    process_frame(args.ts, mapping.read_flux_frame(npz, t), ro, mlto, bo, ctx, args)
 
 
 if __name__ == '__main__':

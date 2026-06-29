@@ -1,18 +1,25 @@
 # SWMF-VR
 
-Turns the radiation-belt sim into 3D field-line shells for the VR app. Connor + Austin.
+Turns the radiation-belt sim into 3D field-line shells for the VR app.
 
-Given a frame of flux, it finds the belt boundaries (inner / outer / a "danger"
-peak surface), traces the field lines through the GM magnetic field, colors them,
-rotates them into GEI (the frame the VR meshes go out in), and can draw a quick plot.
+Given a 2D equatorial cut of flux, we find the belt boundaries (inner / outer / a
+"danger" peak surface), trace the field lines through the GM magnetic field, color them,
+rotate them into GEI (the frame the VR meshes go out in), and can draw a quick plot.
 
 ## Setup
 
+Copy the config template, edit it for your machine (data paths, ParaView `pvbatch`,
+SLURM account/partition), then source it:
 ```bash
-source slurm/env.sh   # sets PYTHONPATH and PV_BATCH
+cp .env.example .env   # then edit .env
+source slurm/env.sh    # loads .env, sets PYTHONPATH + PV_BATCH (+ SBATCH_* for sbatch)
 ```
-Tracing needs ParaView's `pvbatch` (it imports `swmf_vr.render`). Everything else is
-plain `python3`. No install — `env.sh` just puts `src/` on the path for both.
+`.env` is the one place anything machine-specific lives — the Python (`config.py`) and
+every SLURM script read from it (account/partition flow to `sbatch` via `SBATCH_*`, so
+the job scripts carry no hardcoded paths). `.env` is gitignored; `env.sh` falls back to
+`.env.example` (then to built-in literals) if you haven't made one. Tracing needs
+ParaView's `pvbatch` (it imports `swmf_vr.render`); everything else is plain `python3`.
+No install.
 
 ## Run one frame
 
@@ -72,11 +79,12 @@ that frame's time) — parsed from the SWMF run logs. Build them once first:
 ```bash
 python3 scripts/parse_indices.py                   # -> run/slice_renders/indices.npz
 ```
-(`indices.npz` is picked up automatically if present; skip it and you just get the
-maps.) Then all 1683 frames + stitch the movie (8 workers, frames sharded; re-runnable
-— frames whose png+npz already exist are skipped, so a resubmit resumes):
+(`submit_slice_all.sh` builds `indices.npz` for you if it's missing.) Then all 1683
+frames + stitch the movie — a **job array** of 32 small ~13 GB tasks that backfill into
+busy nodes instantly (one big node would wait), plus a dependent movie job. Re-runnable:
+frames whose png+npz already exist are skipped, so a resubmit resumes.
 ```bash
-sbatch slurm/submit_slice_all.sh                   # -> run/slice_renders/movie.mp4
+./slurm/submit_slice_all.sh                        # -> run/slice_renders/movie.mp4
 ```
 Output in `run/slice_renders/`:
 - `npz/slice_y0_<ts>_bands.npz` — the **raw** mapped flux (3 bands), unfiltered

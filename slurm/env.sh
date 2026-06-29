@@ -12,12 +12,12 @@
 SWMF_VR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SWMF_VR_ROOT
 
-# Machine config (paths, account). Falls back to the reference values if absent.
+# Machine config (paths, account): your .env if you made one, else the committed
+# .env.example template, else the reference fallbacks below.
 if [[ -f "$SWMF_VR_ROOT/.env" ]]; then
     source "$SWMF_VR_ROOT/.env"
+elif [[ -f "$SWMF_VR_ROOT/.env.example" ]]; then
+    source "$SWMF_VR_ROOT/.env.example"   # template fallback (placeholder paths)
 fi
-export SWMF_RUN_DIR="${SWMF_RUN_DIR:-/nfs/turbo/coe-tuija/shared/run_mothersday_ne}"
-export CIMI_NPZ="${CIMI_NPZ:-/nfs/turbo/coe-tuija/shared/connor_austin/CRA/data/20240511_170000_e_fls.npz}"
-export PV_BATCH="${PV_BATCH:-/nfs/turbo/coe-tuija/shared/connor_austin/CRA/tools/ParaView-5.12.1-osmesa-MPI-Linux-Python3.10-x86_64/bin/pvbatch}"
 
 export PYTHONPATH="$SWMF_VR_ROOT/src:${PYTHONPATH:-}"

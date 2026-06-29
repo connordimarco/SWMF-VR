@@ -21,8 +21,7 @@ REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--run-dir', default=os.environ.get(
-        'SWMF_RUN_DIR', '/nfs/turbo/coe-tuija/shared/run_mothersday_ne'))
+    p.add_argument('--run-dir', default=os.environ.get('SWMF_RUN_DIR', '/path/to/swmf/run'))
     p.add_argument('--out-root', default=os.path.join(REPO, 'run'))
     p.add_argument('--frames', type=int, default=1683, help='total frames (sets the x-span)')
     args = p.parse_args()
