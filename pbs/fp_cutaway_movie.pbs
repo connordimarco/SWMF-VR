@@ -31,10 +31,10 @@ FRAME_DIR="${FRAME_DIR:-$OUT_ROOT/fp_cutaway_frames}"
 MOVIE="${MOVIE:-$OUT_ROOT/fp_cutaway.mp4}"
 FPS="${FPS:-8}"                          # 10-min frames: 8 fps = 80 min of storm per second
 # Pipeline knobs (qsub -v ... to override). Galaxy-15 defaults chosen 2026-10-14:
-# belt edges at flux 1000 with a 5-sector median, 8 Re apex cap, colour 1e1-1e7.
+# belt edges at flux 1000 with a 5-sector median, 8 Re apex cap, colour 1e1-1e8.
 SEED_ARGS="${SEED_ARGS:---threshold-inner 1000 --threshold-outer 1000 --smooth-mlt 5}"
 TRACE_ARGS="${TRACE_ARGS:---apex-max 8}"
-CUTAWAY_ARGS="${CUTAWAY_ARGS:---flux-min 1e1 --flux-max 1e7}"
+CUTAWAY_ARGS="${CUTAWAY_ARGS:---flux-min 1e1 --flux-max 1e8}"
 LOGS="$OUT_ROOT/logs"
 mkdir -p "$OUT_ROOT" "$FRAME_DIR" "$LOGS"
 export OMP_NUM_THREADS=2
