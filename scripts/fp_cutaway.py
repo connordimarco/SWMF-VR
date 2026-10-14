@@ -381,15 +381,15 @@ def show_sun_and_axes(view):
     show_triad(view, [-1.2, ANNOT_Y, ANNOT_Z], M, 'GEI', 'Gei')
 
 
-def caption_text(ts, band_label, by_flux):
+def caption_text(ts, band_label, by_flux, flux_min=1e3, flux_max=FLUX_MAX):
     lines = [
         'FRAME     {}   {}-{}-{} {}:{} UT'.format(ts, ts[0:4], ts[4:6], ts[6:8], ts[9:11], ts[11:13]),
         'AXES      GSM (+x toward the Sun, +z north).  Camera fixed on the dawn side (y < 0).',
         'CUT       y = 0, the noon-midnight meridian (same plane in GSM and SM); dusk half (y >= 0) drawn.',
         'SURFACES  obj_fp_outer + obj_fp_inner fieldlines_<frame>.obj lofted between neighbouring lines;',
         '          delivered obj_fp_*_gei = the same lines rotated to GEI (gsm_transforms_fp.csv).',
-        'COLOUR    {} omnidirectional electron flux, log 1e3 - 1e8 cm^-2 s^-1, {}.'.format(
-            band_label, 'cut face and both shells' if by_flux else 'cut face only'),
+        'COLOUR    {} omnidirectional electron flux, log {:g} - {:g} cm^-2 s^-1, {}.'.format(
+            band_label, flux_min, flux_max, 'cut face and both shells' if by_flux else 'cut face only'),
     ]
     return '\n'.join(lines)
 
@@ -401,6 +401,7 @@ def main():
     p.add_argument('--resolution', type=float, default=0.025, help='cut-plane grid (Re)')
     p.add_argument('--extent', type=float, default=10.0)
     p.add_argument('--flux-min', type=float, default=1e3)
+    p.add_argument('--flux-max', type=float, default=FLUX_MAX)
     p.add_argument('--out-root', default=os.path.join(REPO, 'run'))
     p.add_argument('--out', default=None)
     p.add_argument('--size', default='1920x1080')
@@ -435,8 +436,18 @@ def main():
     print('[{}] {} shaded points inside the cross-section'.format(ts, np.isfinite(image).sum()))
 
     def shell_flux(points):
-        """Flux on the lofted shells, floored like the cut face (no holes)."""
+        """Flux on the lofted shells, floored like the cut face (no holes).
+        Vertices whose foot point lands on an empty grid cell (NaN or zero --
+        CIMI's inner edge is sharp and BATSRUS's foot latitude sits ~1 deg
+        equatorward of the grid's) take the value of the nearest mapped vertex
+        instead of painting a black streak."""
         vals = sampler.at_points(points)
+        bad = ~np.isfinite(vals) | (vals <= 0.0)
+        if bad.any() and (~bad).any():
+            good_pts, good_vals = points[~bad], vals[~bad]
+            for i in np.where(bad)[0]:
+                d2 = ((good_pts - points[i]) ** 2).sum(axis=1)
+                vals[i] = good_vals[int(d2.argmin())]
         vals[~np.isfinite(vals) | (vals < args.flux_min)] = args.flux_min
         return vals
     flux_fn = shell_flux if args.shell_color == 'flux' else None
@@ -461,7 +472,7 @@ def main():
     ColorBy(face_disp, ('POINTS', 'flux'))
     lut = GetColorTransferFunction('flux')
     lut.ApplyPreset('Inferno (matplotlib)', True)
-    lut.RescaleTransferFunction(args.flux_min, FLUX_MAX)
+    lut.RescaleTransferFunction(args.flux_min, args.flux_max)
     lut.MapControlPointsToLogSpace()
     lut.UseLogScale = 1
     lut.NanOpacity = 0.0
@@ -489,7 +500,7 @@ def main():
 
     if not args.no_caption:
         caption = Text(registrationName='Caption')
-        caption.Text = caption_text(ts, BAND_LABELS[args.band], by_flux)
+        caption.Text = caption_text(ts, BAND_LABELS[args.band], by_flux, args.flux_min, args.flux_max)
         cdisp = Show(caption, view)
         cdisp.WindowLocation = 'Lower Left Corner'; cdisp.FontSize = 14
         cdisp.Color = [0.92, 0.92, 0.92]; cdisp.Justification = 'Left'

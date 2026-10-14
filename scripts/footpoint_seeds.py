@@ -161,6 +161,24 @@ def find_outer_boundary_lat(flux_slice, lat_lvls_deg, irm_counts, ro_slice,
     return result_lat_deg
 
 
+def smooth_boundary_mlt(lat_deg, window):
+    """Periodic running median across MLT sectors (window odd, >= 3) to take
+    out single-sector spikes; NaN sectors stay NaN and are ignored as
+    neighbours."""
+    if window is None or window < 3:
+        return lat_deg
+    half = window // 2
+    out = np.array(lat_deg, dtype=float)
+    n = len(lat_deg)
+    for m in range(n):
+        if not np.isfinite(lat_deg[m]):
+            continue
+        vals = [lat_deg[(m + k) % n] for k in range(-half, half + 1)]
+        vals = [v for v in vals if np.isfinite(v)]
+        out[m] = float(np.median(vals))
+    return out
+
+
 def find_danger_boundary_lat(flux_slice, lat_lvls_deg, irm_counts, ro_slice):
     """Per-MLT foot latitude of the flux PEAK (the danger surface), plus the
     peak flux value itself."""
@@ -234,6 +252,12 @@ def main():
     p.add_argument('--out-root', default=None)
     p.add_argument('--energy-min', type=float, default=None)
     p.add_argument('--handoff', type=float, default=dipole.HANDOFF_RADIUS_RE)
+    p.add_argument('--threshold-inner', type=float, default=10.0,
+                   help='inner edge: first crossing of this > 2 MeV flux walking out (10)')
+    p.add_argument('--threshold-outer', type=float, default=10.0,
+                   help='outer edge: drop below this walking out from the peak (10)')
+    p.add_argument('--smooth-mlt', type=int, default=None,
+                   help='odd window: periodic running median of each boundary across MLT')
     args = p.parse_args()
 
     rank, size = (args.shard + [0, 1])[:2]
@@ -299,21 +323,24 @@ def main():
         ro_slice = ro_all[t_idx]
 
         inner_lat = find_inner_boundary_lat(
-            flux_slice, lat_lvls_deg, irm_counts, ro_slice, 10.0)
+            flux_slice, lat_lvls_deg, irm_counts, ro_slice, args.threshold_inner)
         outer_lat = find_outer_boundary_lat(
-            flux_slice, lat_lvls_deg, irm_counts, ro_slice, 10.0)
+            flux_slice, lat_lvls_deg, irm_counts, ro_slice, args.threshold_outer)
         danger_lat, peak_flux = find_danger_boundary_lat(
             flux_slice, lat_lvls_deg, irm_counts, ro_slice)
+        inner_lat = smooth_boundary_mlt(inner_lat, args.smooth_mlt)
+        outer_lat = smooth_boundary_mlt(outer_lat, args.smooth_mlt)
+        danger_lat = smooth_boundary_mlt(danger_lat, args.smooth_mlt)
 
         # The SM -> GSM rotation (dipole tilt) is time dependent; set it once
         # for this frame before converting any seed points.
         frames.recalc_for(frame_dt)
 
         write_footpoint_seed_csv(
-            inner_lat, mlt_lvls_hr, 10.0, peak_flux, args.handoff,
+            inner_lat, mlt_lvls_hr, args.threshold_inner, peak_flux, args.handoff,
             os.path.join(seed_dirs['inner'], 'boundary_{}.csv'.format(ts)))
         write_footpoint_seed_csv(
-            outer_lat, mlt_lvls_hr, 10.0, peak_flux, args.handoff,
+            outer_lat, mlt_lvls_hr, args.threshold_outer, peak_flux, args.handoff,
             os.path.join(seed_dirs['outer'], 'boundary_{}.csv'.format(ts)))
         write_footpoint_seed_csv(
             danger_lat, mlt_lvls_hr, peak_flux, peak_flux, args.handoff,
