@@ -185,9 +185,9 @@ def main():
     # --- geometry in GSM ---------------------------------------------------------
     outer_pts, outer_tris = half_surface_mesh(outer_lines)
     inner_pts, inner_tris = half_surface_mesh(inner_lines)
+    sampler = fc.FluxSampler(plt_path, cfg.paths.npz_path, t, args.band, dipole.HANDOFF_RADIUS_RE)
     xs, zs, image = fc.shade_cut_plane(
-        plt_path, cfg.paths.npz_path, t, args.band, args.resolution, args.extent,
-        dipole.HANDOFF_RADIUS_RE,
+        sampler, args.resolution, args.extent,
         inside_fn=lambda xz: fc.cross_section_mask(outer_lines, inner_lines, xz))
     image[np.isfinite(image) & (image < args.flux_min)] = args.flux_min
     face_pts, face_tris, face_u, face_flux = cut_face_mesh(xs, zs, image, args.flux_min, args.flux_max)

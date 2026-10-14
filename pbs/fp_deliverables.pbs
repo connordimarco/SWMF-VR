@@ -52,7 +52,7 @@ done
 # 2. cutaway OBJ packages (one dir per timestamp under cutaway_obj_gei/)
 for ts in $OBJ_TS; do
     [[ -f "$OUT_ROOT/obj_fp_outer/fieldlines_${ts}.obj" ]] || { echo "[obj] no shells for $ts -- skip"; continue; }
-    [[ -d "$OUT_ROOT/cutaway_obj_gei/$ts" ]] && { echo "[obj] $ts exists"; continue; }
+    [[ -f "$OUT_ROOT/cutaway_obj_gei/$ts/cutaway_${ts}.obj" ]] && { echo "[obj] $ts exists"; continue; }
     "$PV_BATCH" scripts/fp_cutaway_obj.py --ts "$ts" --out-root "$OUT_ROOT" $OBJ_ARGS \
         > "$LOGS/cutaway_obj_${ts}.log" 2>&1 && echo "[obj] $ts done" || echo "[obj] $ts failed"
 done
