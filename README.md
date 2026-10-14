@@ -160,8 +160,15 @@ Athena. Differences from the Mother's Day / RBE setup, all driven by `.env`:
 - `SWMF_BASE_ISO` (new) sets frame 0; the frame index is looked up on the npz
   time axis (`data.frame_index_for`), so the cadence no longer has to be 1 min.
 - `footpoint_seeds.py` takes the grid size from the npz.
-- `pbs/fp_cutaway_movie.pbs`: the whole chain on one Turin node (npz, seeds,
-  trace, cutaway, ffmpeg), `NPAR` pvbatch processes at a time.
+- `scripts/plt_visit_fix.py`: preplot's raw `.plt` output (zone "3D N=...",
+  a chain of AUXDATA records, `X [R]` names) is rejected as invalid by
+  ParaView's VisIt Tecplot reader in every build tried. Austin's
+  `3d__paraview_1_*.plt` read fine because they were rewritten: zone
+  `global_field`, no aux, `x y z`. The script does the same header rewrite
+  (data section copied byte for byte; aux saved as `<name>.aux`, originals in
+  `preplot_orig/`). The PBS job runs it first.
+- `pbs/fp_cutaway_movie.pbs`: the whole chain on one Turin node (plt fix, npz,
+  seeds, trace, cutaway, ffmpeg), `NPAR` pvbatch processes at a time.
 
 Athena tools (see the LAUREN project notes for the login chain): ParaView
 5.12.1 osmesa binary in `/nobackupp28/cdimarco/CRA/tools/` (plus `libglapi`

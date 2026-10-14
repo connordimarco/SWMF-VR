@@ -36,6 +36,11 @@ mkdir -p "$OUT_ROOT" "$FRAME_DIR" "$LOGS"
 export OMP_NUM_THREADS=2
 echo "node $(hostname)  start $(date)  NPAR=$NPAR  run=$SWMF_RUN_DIR"
 
+# 0. make preplot's .plt files readable by the VisIt Tecplot reader (resumable;
+#    already-converted files are skipped, originals go to GM/IO2/preplot_orig/)
+"$PYTHON" scripts/plt_visit_fix.py --in-place "$SWMF_RUN_DIR"/GM/IO2/*.plt > "$LOGS/plt_fix.log" 2>&1 \
+    || { echo "plt header fix failed"; tail -5 "$LOGS/plt_fix.log"; exit 1; }
+
 # 1. CIMI fls -> RBE-layout npz (frames with a 3D .plt only)
 if [[ ! -f "$RBE_NPZ" ]]; then
     echo "[npz] $RBE_NPZ"
