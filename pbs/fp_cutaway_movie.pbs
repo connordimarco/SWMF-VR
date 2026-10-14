@@ -19,11 +19,10 @@
 #PBS -j oe
 #PBS -m be
 #PBS -M cdimarco@umich.edu
-set -uo pipefail
-
-source /etc/profile >/dev/null 2>&1
-cd "$PBS_O_WORKDIR"
+source /etc/profile >/dev/null 2>&1     # (before set -u: the profile scripts use unset vars)
+cd "$PBS_O_WORKDIR" || exit 1
 source slurm/env.sh                      # .env -> SWMF_RUN_DIR, RBE_NPZ, PV_BATCH, ...
+set -o pipefail
 PYTHON="${PYTHON:-python3}"
 FFMPEG="${FFMPEG:-ffmpeg}"
 NPAR="${NPAR:-32}"
