@@ -65,7 +65,9 @@ class FluxConfig(NamedTuple):
 
 
 class TimeConfig(NamedTuple):
-    base_iso: str = '2024-05-10T13:00:00'   # frame 0 wall-clock; data['time'] is minutes after this
+    # frame-0 wall-clock; data['time'] is minutes after this. Set SWMF_BASE_ISO in
+    # .env for another run (the Galaxy-15 run: 2010-04-05T04:00:00).
+    base_iso: str = os.environ.get('SWMF_BASE_ISO', '2024-05-10T13:00:00')
 
 
 class SurfaceSpec(NamedTuple):

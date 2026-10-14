@@ -13,7 +13,7 @@ from collections import defaultdict
 
 import numpy as np
 
-BASE_ISO = '2024-05-10T13:00:00'
+BASE_ISO = os.environ.get('SWMF_BASE_ISO', '2024-05-10T13:00:00')
 EPOCH = datetime.datetime(1970, 1, 1)
 
 SEED_HEADER = 'Seed_X_Re,Seed_Y_Re,Seed_Z_Re,Equator_R,Equator_MLT,Flux,Flux_peak'
@@ -77,6 +77,40 @@ def load_grids(npz_path):
         data.close()
     return {'E_lvls': e_grid, 'alpha_lvls': a_grid, 'time': time_arr,
             'ro': ro_vals, 'mlto': mlto_vals}
+
+
+def grid_dims(npz_path):
+    """(lat_dim, mlt_dim) of the foot-point grid, from lat_lvls / mlt_lvls."""
+    d = np.load(npz_path, allow_pickle=True)
+    try:
+        return int(len(d['lat_lvls'])), int(len(d['mlt_lvls']))
+    finally:
+        d.close()
+
+
+def frame_index_for(npz_path, frame_dt, base_dt, tol_min=0.5):
+    """Index of the npz frame at frame_dt, via the npz time axis (minutes after
+    base_dt, or datetimes). Returns None when no frame is within tol_min. Falls
+    back to index == minutes (the 1-min-cadence RBE convention) when the time
+    axis is unreadable."""
+    try:
+        d = np.load(npz_path, allow_pickle=True)
+        try:
+            t_axis = d['time']
+        finally:
+            d.close()
+        if t_axis.dtype.kind == 'O':
+            minutes = np.array([(frame_datetime(v, base_dt) - base_dt).total_seconds() / 60.0
+                                for v in t_axis])
+        else:
+            minutes = np.asarray(t_axis, dtype=float)
+    except Exception:
+        return int(round((frame_dt - base_dt).total_seconds() / 60.0))
+    want = (frame_dt - base_dt).total_seconds() / 60.0
+    k = int(np.argmin(np.abs(minutes - want)))
+    if abs(minutes[k] - want) > tol_min:
+        return None
+    return k
 
 
 def select_energy_alpha(e_grid, a_grid, energy_min_kev, target_alpha_val):

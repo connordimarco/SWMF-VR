@@ -172,7 +172,9 @@ def main():
     cfg = config.CRAConfig()
     frame_dt = datetime.datetime.strptime(ts, '%Y%m%d_%H%M%S')
     frames.recalc_for(frame_dt)
-    t = int(round((frame_dt - data.base_datetime(cfg.time.base_iso)).total_seconds() / 60.0))
+    t = data.frame_index_for(cfg.paths.npz_path, frame_dt, data.base_datetime(cfg.time.base_iso))
+    if t is None:
+        sys.exit('[{}] no flux frame at this time in {}'.format(ts, cfg.paths.npz_path))
     plt_path = render.find_matching_plt(cfg.paths.plt_dir, ts)
 
     outer_lines = fc.read_obj_polylines(os.path.join(args.out_root, 'obj_fp_outer',

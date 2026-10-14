@@ -147,6 +147,30 @@ python3     scripts/fp_slices_csv.py [--bands gt2] [--drop-zeros] [--split-azimu
 Full run: `slurm/fp_slices_array.sh` (32 shards) then `slurm/fp_slices_movie_array.sh`
 (24 tasks, `--dependency=afterany`). Azimuth 0 = noon, MLT = az/15 + 12.
 
+## Athena (NASA HECC) and the Galaxy-15 (April 2010) CIMI run
+
+The April 2010 run (`/nobackupp28/cdimarco/run_galaxy2010`, BATSRUS + RIM +
+CIMI, 3D `tcp` files every 10 min, CIMI `fls e` every minute) is processed on
+Athena. Differences from the Mother's Day / RBE setup, all driven by `.env`:
+
+- `scripts/cimi_fls_to_npz.py` converts CIMI's `.fls` electron files to the
+  RBE npz layout (75 lat x 48 MLT x 20 E x 18 pitch angles; MLT axis rolled to
+  start at 0; `irm` recovered from the frozen rows; `time` = minutes after
+  `SWMF_BASE_ISO`). `--plt-dir` keeps only the times that have a 3D `.plt`.
+- `SWMF_BASE_ISO` (new) sets frame 0; the frame index is looked up on the npz
+  time axis (`data.frame_index_for`), so the cadence no longer has to be 1 min.
+- `footpoint_seeds.py` takes the grid size from the npz.
+- `pbs/fp_cutaway_movie.pbs`: the whole chain on one Turin node (npz, seeds,
+  trace, cutaway, ffmpeg), `NPAR` pvbatch processes at a time.
+
+Athena tools (see the LAUREN project notes for the login chain): ParaView
+5.12.1 osmesa binary in `/nobackupp28/cdimarco/CRA/tools/` (plus `libglapi`
+copied from NASA's 5.11 mesa build), static ffmpeg there too, `cray-python`
+venv `/nobackupp28/cdimarco/CRA/venv` (matplotlib) and `pip install --user
+geopack` with the IGRF tables copied in (the PyPI 1.0.13 package downloads
+them at import, which compute nodes cannot do; `init_igrf` patched to skip the
+fetch when tables exist).
+
 ## Layout
 
 `src/swmf_vr/`: `data` (read/write), `belt` (boundaries + seeds), `frames` (GSM↔GEI),

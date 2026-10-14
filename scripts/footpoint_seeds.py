@@ -261,6 +261,8 @@ def main():
     lat_lvls_deg = np.asarray(npz['lat_lvls'], dtype=float)
     mlt_lvls_hr = np.asarray(npz['mlt_lvls'], dtype=float)
     irm_per_time_mlt = np.asarray(npz['irm'][:, 0, :], dtype=float)
+    cfg = cfg._replace(flux=cfg.flux._replace(lat_dim=len(lat_lvls_deg),
+                                                mlt_dim=len(mlt_lvls_hr)))
     ro_all = np.asarray(npz['ro'], dtype=float)      # (T, L, M), ~33 MB
     npz.close()
 
