@@ -140,6 +140,6 @@ def plot_bands(xs, zs, flux, labels, ts, quantity, out_png, floor=1e-10, drop=1.
     if idx is not None:
         _draw_strips(fig, strip_axes, idx, ts)
 
-    fig.suptitle('CIMI flux mapped to 3D  --  y=0 GSM cut  --  {}'.format(ts), fontsize=14)
+    fig.suptitle('RBE flux mapped to 3D  --  y=0 GSM cut  --  {}'.format(ts), fontsize=14)
     plt.savefig(out_png, dpi=140, bbox_inches='tight')
     plt.close(fig)

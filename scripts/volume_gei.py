@@ -35,7 +35,7 @@ def write_csv(path, pts, flux, ts, quantity, step, extent):
                 .format(ts))
         f.write('# grid: {} Re lattice in GSM rotated to GEI, 2.05 <= r <= {} Re;  '
                 '{} energy-band-integrated flux, {}\n'.format(step, extent, quantity, unit))
-        f.write('# NaN = no value (open field line or equatorial footpoint off the CIMI grid)\n')
+        f.write('# NaN = no value (open field line or equatorial footpoint off the RBE grid)\n')
         f.write('x_re,y_re,z_re,flux_lt1MeV,flux_1to2MeV,flux_gt2MeV\n')
         for (x, y, z), row in zip(pts, flux):
             f.write('{:.4f},{:.4f},{:.4f},{},{},{}\n'.format(

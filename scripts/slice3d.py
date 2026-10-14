@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""CIMI equatorial flux -> 3D, sampled on the y=0 GSM plane (pvbatch).
+"""RBE equatorial flux -> 3D, sampled on the y=0 GSM plane (pvbatch).
 
 For each point in the noon-midnight meridian, trace the BATSRUS field line and
-map CIMI's equatorial flux out to it -- B_s locally, B_eq = min|B| along the line,
-the equatorial footpoint -> CIMI PAD lookup -> omnidirectional (or perpendicular)
+map RBE's equatorial flux out to it -- B_s locally, B_eq = min|B| along the line,
+the equatorial footpoint -> RBE PAD lookup -> omnidirectional (or perpendicular)
 flux, integrated into <1 / 1-2 / >2 MeV bands. Open lines are masked. Each frame
 writes a 3-panel PNG (png/) and an .npz of the raw slice (npz/, so the despeckle +
 plot can be re-tuned offline via replot_slice.py without re-tracing).
@@ -93,7 +93,7 @@ def per_seed_fields(poly, seeds, foot_rmax=8.0):
     return b_eq, foot, maxr, b_s
 
 
-def map_seeds(b_eq, foot, maxr, b_s, cimi, ctx, args):
+def map_seeds(b_eq, foot, maxr, b_s, rbe, ctx, args):
     """Adiabatically map every closed seed into the energy bands. Returns the per-
     band (n,n) flux arrays plus (n_closed, n_mapped, B_eq/bo ratios)."""
     flux = [np.full((args.n, args.n), np.nan) for _ in BANDS]
@@ -106,7 +106,7 @@ def map_seeds(b_eq, foot, maxr, b_s, cimi, ctx, args):
         fx, fy, fz = foot[sid]
         r_eq = float(np.sqrt(fx * fx + fy * fy + fz * fz))
         mlt_eq = float((np.degrees(np.arctan2(fy, fx)) / 15.0 + 12.0) % 24.0)
-        pad, bo_c = cimi.at(r_eq, mlt_eq)           # equatorial PAD (E, A), B_eq
+        pad, bo_c = rbe.at(r_eq, mlt_eq)           # equatorial PAD (E, A), B_eq
         if pad is None:
             continue
         iz, ix = ctx.ij[sid]
@@ -125,7 +125,7 @@ def map_seeds(b_eq, foot, maxr, b_s, cimi, ctx, args):
         if mapped_any:
             n_mapped += 1
         if bo_c and bo_c > 0:
-            ratios.append(b_eq[sid] * 1e-9 / bo_c)  # trace |B| nT->T vs CIMI bo (T)
+            ratios.append(b_eq[sid] * 1e-9 / bo_c)  # trace |B| nT->T vs RBE bo (T)
     return flux, n_closed, n_mapped, ratios
 
 
@@ -134,7 +134,7 @@ def process_frame(ts, flux_frame, ro, mlto, bo, ctx, args):
     plt_path = render.find_matching_plt(ctx.plt_dir, ts)
     if not plt_path:
         print('[{}] no .plt -- skip'.format(ts)); return False
-    cimi = mapping.CimiEquator(ro, mlto, flux_frame, bo=bo, dmax=args.max_dist)
+    rbe = mapping.RbeEquator(ro, mlto, flux_frame, bo=bo, dmax=args.max_dist)
 
     seed_csv = os.path.join(ctx.seeds_dir, '_seeds_{}.csv'.format(ts))   # per-frame, collision-free
     with open(seed_csv, 'w') as f:
@@ -152,7 +152,7 @@ def process_frame(ts, flux_frame, ro, mlto, bo, ctx, args):
         print('[{}] trace failed'.format(ts)); return False
     tracer, points_source, csv_reader, poly, _ = res
     b_eq, foot, maxr, b_s = per_seed_fields(poly, ctx.seeds, foot_rmax=args.foot_rmax)
-    flux, n_closed, n_mapped, ratios = map_seeds(b_eq, foot, maxr, b_s, cimi, ctx, args)
+    flux, n_closed, n_mapped, ratios = map_seeds(b_eq, foot, maxr, b_s, rbe, ctx, args)
     for pr in (tracer, points_source, csv_reader, b_calc, reader):
         render.Delete(pr)
     os.remove(seed_csv)

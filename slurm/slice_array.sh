@@ -25,7 +25,7 @@ QUANTITY="${QUANTITY:-omni}"
 RANK="${SLURM_ARRAY_TASK_ID:-0}"
 NSHARDS="${SLURM_ARRAY_TASK_COUNT:-32}"
 
-NFRAMES=1683                                              # frames in the CIMI npz
+NFRAMES=1683                                              # frames in the RBE npz
 BASE_EPOCH=$(date -u -d "2024-05-10 13:00:00 UTC" +%s)   # frame 0 (== config base_iso, 1-min cadence)
 PNG="$OUT_ROOT/slice_renders/png"
 NPZ="$OUT_ROOT/slice_renders/npz"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CIMI equatorial flux -> 3D voxel grid (pvbatch), the format the VR team asked for.
+"""RBE equatorial flux -> 3D voxel grid (pvbatch), the format the VR team asked for.
 
 Same trace + adiabatic mapping as slice3d.py, but the samples are a full 3D
 lattice (GSM Re, Earth-centered, clipped to r_min..extent) instead of the y=0
@@ -8,7 +8,7 @@ plane. Per frame writes:
   csv/volume_<ts>_bands.csv   one line per point: x,y,z then the three band
                               fluxes (<1 / 1-2 / >2 MeV). NaN = no value there
                               (open line, inside the inner body, or footpoint
-                              off the CIMI grid).
+                              off the RBE grid).
   npz/volume_<ts>_bands.npz   the raw points+flux, so the CSV can be
                               reformatted / rotated to GEI offline without
                               re-tracing.
@@ -43,7 +43,7 @@ def volume_seeds(extent, step, r_min=2.05):
     return pts[(r >= r_min) & (r <= extent)]
 
 
-def map_volume(b_eq, foot, maxr, b_s, cimi, band_ch, widths, sin_grid, args):
+def map_volume(b_eq, foot, maxr, b_s, rbe, band_ch, widths, sin_grid, args):
     """Adiabatically map every closed seed. Returns ((K, nbands) flux, NaN where
     unmapped, plus (n_closed, n_mapped, B_eq/bo ratios))."""
     K = len(b_eq)
@@ -57,7 +57,7 @@ def map_volume(b_eq, foot, maxr, b_s, cimi, band_ch, widths, sin_grid, args):
         fx, fy, fz = foot[sid]
         r_eq = float(np.sqrt(fx * fx + fy * fy + fz * fz))
         mlt_eq = float((np.degrees(np.arctan2(fy, fx)) / 15.0 + 12.0) % 24.0)
-        pad, bo_c = cimi.at(r_eq, mlt_eq)           # equatorial PAD (E, A), B_eq
+        pad, bo_c = rbe.at(r_eq, mlt_eq)           # equatorial PAD (E, A), B_eq
         if pad is None:
             continue
         mapped_any = False
@@ -75,7 +75,7 @@ def map_volume(b_eq, foot, maxr, b_s, cimi, band_ch, widths, sin_grid, args):
         if mapped_any:
             n_mapped += 1
         if bo_c and bo_c > 0:
-            ratios.append(b_eq[sid] * 1e-9 / bo_c)  # trace |B| nT->T vs CIMI bo (T)
+            ratios.append(b_eq[sid] * 1e-9 / bo_c)  # trace |B| nT->T vs RBE bo (T)
     return flux, n_closed, n_mapped, ratios
 
 
@@ -87,7 +87,7 @@ def write_csv(path, seeds, flux, ts, args):
         f.write('# SWMF-VR 3D flux volume  ts={}  frame=GSM (Re, Earth-centered)\n'.format(ts))
         f.write('# grid: step={} Re, {} <= r <= {} Re;  {} energy-band-integrated '
                 'flux, {}\n'.format(args.step, 2.05, args.extent, args.quantity, unit))
-        f.write('# NaN = no value (open field line or equatorial footpoint off the CIMI grid)\n')
+        f.write('# NaN = no value (open field line or equatorial footpoint off the RBE grid)\n')
         f.write('x_re,y_re,z_re,flux_lt1MeV,flux_1to2MeV,flux_gt2MeV\n')
         for (x, y, z), row in zip(seeds, flux):
             f.write('{:.3f},{:.3f},{:.3f},{},{},{}\n'.format(
@@ -150,7 +150,7 @@ def main():
     seeds = volume_seeds(args.extent, args.step)
     print('[{}] tracing {} volume points (step={} Re)'.format(ts, len(seeds), args.step))
 
-    cimi = mapping.CimiEquator(ro, mlto, mapping.read_flux_frame(npz, t),
+    rbe = mapping.RbeEquator(ro, mlto, mapping.read_flux_frame(npz, t),
                                bo=bo, dmax=args.max_dist)
 
     seed_csv = os.path.join(seeds_dir, '_seeds_{}.csv'.format(ts))
@@ -170,7 +170,7 @@ def main():
     tracer, points_source, csv_reader, poly, _ = res
     b_eq, foot, maxr, b_s = per_seed_fields(poly, seeds, foot_rmax=args.foot_rmax)
     flux, n_closed, n_mapped, ratios = map_volume(
-        b_eq, foot, maxr, b_s, cimi, band_ch, widths, sin_grid, args)
+        b_eq, foot, maxr, b_s, rbe, band_ch, widths, sin_grid, args)
     for pr in (tracer, points_source, csv_reader, b_calc, reader):
         render.Delete(pr)
     os.remove(seed_csv)

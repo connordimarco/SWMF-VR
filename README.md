@@ -53,11 +53,11 @@ the SLURM scripts in `slurm/` (`./submit_all.sh`) — one process is too slow fo
 `bmag`, `radius`, `lat`. The flux scales go up to the measured peak (~15875), so the
 brightest color is the real maximum. Tune with `--cmap / --vmin / --vmax / --log`.
 
-## 3D flux (CIMI → field lines)
+## 3D flux (RBE → field lines)
 
-The flux NPZ is CIMI output: directional flux on the *equator* only, per energy and
-equatorial pitch angle. `slice3d.py` lifts that into 3D. For each point it traces the
-BATSRUS field line, reads CIMI's equatorial flux at the line's minimum-|B| point, and
+The flux NPZ is RBE output: directional flux at the *equator* only (the minimum-|B|
+point of each line, not z=0), per energy and equatorial pitch angle. `slice3d.py` lifts that into 3D. For each point it traces the
+BATSRUS field line, reads RBE's equatorial flux at the line's minimum-|B| point, and
 maps it out along the line with the two adiabatic invariants — `μ` opens the pitch
 angle as `B` rises (`sin α = sin α_eq·√(B/B_eq)`), Liouville keeps the directional
 flux fixed. Summed over the local cone that's the omnidirectional flux, which pancakes
@@ -106,11 +106,52 @@ neighbour median, plus embedded NaN holes — and leaves every good pixel and th
 empty regions alone. Knobs: `--drop` (decades below local median to count as bad) and
 `--floor`.
 
+## Foot-point method (current, 2026-09)
+
+The pipeline above seeds at the equator; the **current** method seeds from the
+ionospheric foot points instead (Gabor's review, 2026-09-01 — see
+`docs/2026-09-01_footpoint_redesign.md` for the why, the decisions and the numbers).
+Each line is the tilted centered dipole from the foot point up to 2.5 Re, the BATSRUS
+trace beyond, and the dipole back down from where the trace re-enters; the flux
+volume comes from BATSRUS's own foot-point arrays with no tracing at all. Same OBJ /
+CSV formats, so `gei.py`, `volume_gei.py` and the VR app are unchanged.
+
+```bash
+python3     scripts/footpoint_seeds.py 0 8 --out-root run     # boundaries in foot-point latitude -> out_seeds_fp_*/
+"$PV_BATCH" scripts/footpoint_trace.py 0 8 --out-root run     # hybrid dipole+BATSRUS lines -> obj_fp_*/
+"$PV_BATCH" scripts/footpoint_volume.py --ts 20240510_210000  # the flux box, ~10 s/frame -> volume_renders_fp/
+python3     scripts/fp_movie.py 0 8                            # field-line movie frames
+python3     scripts/fp_volume_cuts.py phases --ts <ts> ...     # three cuts through the box (or `movie`)
+"$PV_BATCH" scripts/fp_cutaway.py --ts <ts>                    # half-donut cutaway render
+"$PV_BATCH" scripts/fp_cutaway_obj.py --ts <ts> --frame gei    # the cutaway as OBJ for VR (+ PARAVIEW_INSTRUCTIONS.md)
+```
+Full run: `slurm/submit_fp_seeds.sh` → `slurm/fp_trace_array.sh` →
+`slurm/fp_volume_array.sh` / `slurm/fp_cutaway_array.sh` (32-task arrays, resumable).
+Knobs worth knowing: `--apex-max` (lines stretching beyond it, or open, retreat
+equatorward until trapped; 12 Re), `--handoff` (2.5 Re), `OUTER_GAP_ROWS` in
+`footpoint_seeds.py`.
+
+## Meridional slices about the dipole axis (2026-09)
+
+For the VR team's 3D reconstruction: 24 half-plane slices, 15 deg apart about the
+SM (dipole) axis, flux mapped directly on each plane (no voxel resampling), all
+three bands, **no NaNs** (empty = 0, interior pinholes filled). One frame, all
+slices, ~90 s. See `docs/2026-09-08_dipole_slices.md` (incl. the |B| < B_min
+finding on the flanks; the per-pixel ratio is saved as `bratio`).
+
+```bash
+"$PV_BATCH" scripts/fp_slices.py --ts 20240511_094100 [--step 0.1] [--frame gei|sm|gsm]   # -> run/fp_slices/{csv,npz}/ + preview png
+python3     scripts/fp_slices_movie.py 0 24 [--bmin-tol 0.8]                            # one movie per azimuth -> run/fp_slices/movies/
+python3     scripts/fp_slices_csv.py [--bands gt2] [--drop-zeros] [--split-azimuths] [--out-dir D]   # re-export CSV from the npz cubes (default: one file per ts, all cuts, azimuth_deg column)
+```
+Full run: `slurm/fp_slices_array.sh` (32 shards) then `slurm/fp_slices_movie_array.sh`
+(24 tasks, `--dependency=afterany`). Azimuth 0 = noon, MLT = az/15 + 12.
+
 ## Layout
 
 `src/swmf_vr/`: `data` (read/write), `belt` (boundaries + seeds), `frames` (GSM↔GEI),
 `color` (shell shading + 2D plot), `render` (ParaView tracing — pvbatch only),
-`mapping` (the CIMI→3D adiabatic kernel + equatorial lookup), `sliceplot` (despeckle +
+`mapping` (the RBE→3D adiabatic kernel + equatorial lookup), `sliceplot` (despeckle +
 slice plot with the Bz/AL/Dst strips), `indices` (SWMF-log readers), `config`. The
 3D-flux scripts are `slice3d.py` (trace, pvbatch), `replot_slice.py` (offline replot),
 and `parse_indices.py` (build the index strips). Old versions live in `../archive/` if

@@ -43,7 +43,8 @@ _CRA = os.path.dirname(os.path.dirname(os.path.dirname(_PKG)))   # .../CRA
 
 # Paths come from the environment (set by .env via slurm/env.sh); the fallbacks are
 # placeholders / install-relative so no real path lives in the committed source.
-_NPZ = os.environ.get('CIMI_NPZ', os.path.join(_CRA, 'data', 'cimi_flux.npz'))
+_NPZ = os.environ.get('RBE_NPZ',                      # CIMI_NPZ is the old name
+       os.environ.get('CIMI_NPZ', os.path.join(_CRA, 'data', 'rbe_flux.npz')))
 _PLT = os.path.join(os.environ.get('SWMF_RUN_DIR', '/path/to/swmf/run'), 'GM', 'IO2')
 _PVBATCH = os.environ.get('PV_BATCH', os.path.join(
     _CRA, 'tools', 'ParaView-osmesa', 'bin', 'pvbatch'))

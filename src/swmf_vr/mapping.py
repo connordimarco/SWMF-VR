@@ -1,6 +1,7 @@
-"""Adiabatic mapping of CIMI equatorial flux onto a point of a closed field line.
+"""Adiabatic mapping of RBE equatorial flux onto a point of a closed field line.
 
-CIMI solves the bounce-averaged distribution on the equator, so its native output
+RBE solves the bounce-averaged distribution on the equator (the minimum-B point
+of each line), so its native output
 is a 2D (equatorial) map of directional flux j_eq(E, alpha_eq) per field line. To
 put that flux at an arbitrary point s on the same (closed) line:
 
@@ -51,8 +52,8 @@ def channel_widths(E_lvls):
     return np.diff(edges)
 
 
-class CimiEquator:
-    """Inverse-distance lookup of the CIMI equatorial PAD by (r_eq, MLT_eq).
+class RbeEquator:
+    """Inverse-distance lookup of the RBE equatorial PAD by (r_eq, MLT_eq).
 
     ro / mlto / flux_frame / bo are one time slice: ro,mlto,bo are (L, M) and
     flux_frame is (L, M, E, A). MLT convention: noon (+X) = 12, dusk (+Y) = 18.
@@ -75,7 +76,7 @@ class CimiEquator:
 
     def at(self, r_eq, mlt_eq):
         """Interpolated equatorial PAD (E, A) and B_eq at (r_eq, MLT_eq), or
-        (None, None) if the footpoint falls outside the CIMI grid."""
+        (None, None) if the footpoint falls outside the RBE grid."""
         ang = np.radians((mlt_eq - 12.0) * 15.0)
         d, j = self.tree.query([r_eq * np.cos(ang), r_eq * np.sin(ang)], k=self.k)
         d, j = np.atleast_1d(d), np.atleast_1d(j)
