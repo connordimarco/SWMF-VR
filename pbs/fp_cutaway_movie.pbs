@@ -30,6 +30,11 @@ OUT_ROOT="${OUT_ROOT:-$SWMF_VR_ROOT/run}"
 FRAME_DIR="${FRAME_DIR:-$OUT_ROOT/fp_cutaway_frames}"
 MOVIE="${MOVIE:-$OUT_ROOT/fp_cutaway.mp4}"
 FPS="${FPS:-8}"                          # 10-min frames: 8 fps = 80 min of storm per second
+# Pipeline knobs (qsub -v ... to override). Galaxy-15 defaults chosen 2026-10-14:
+# belt edges at flux 100 with a 5-sector median, 8 Re apex cap, colour 1e1-1e7.
+SEED_ARGS="${SEED_ARGS:---threshold-inner 100 --threshold-outer 100 --smooth-mlt 5}"
+TRACE_ARGS="${TRACE_ARGS:---apex-max 8}"
+CUTAWAY_ARGS="${CUTAWAY_ARGS:---flux-min 1e1 --flux-max 1e7}"
 LOGS="$OUT_ROOT/logs"
 mkdir -p "$OUT_ROOT" "$FRAME_DIR" "$LOGS"
 export OMP_NUM_THREADS=2
@@ -50,14 +55,14 @@ fi
 
 # 2. belt boundaries in foot-point space (fast, serial)
 echo "[seeds] $(date)"
-"$PYTHON" scripts/footpoint_seeds.py 0 1 --out-root "$OUT_ROOT" > "$LOGS/seeds.log" 2>&1 \
+"$PYTHON" scripts/footpoint_seeds.py 0 1 --out-root "$OUT_ROOT" $SEED_ARGS > "$LOGS/seeds.log" 2>&1 \
     || { echo "seeds failed"; tail -5 "$LOGS/seeds.log"; exit 1; }
 echo "[seeds] $(ls "$OUT_ROOT"/out_seeds_fp_outer/boundary_*.csv | wc -l) frames"
 
 # 3. hybrid dipole + BATSRUS field lines, NPAR shards in parallel
 echo "[trace] $(date)"
 for ((r = 0; r < NPAR; r++)); do
-    "$PV_BATCH" scripts/footpoint_trace.py "$r" "$NPAR" --out-root "$OUT_ROOT" \
+    "$PV_BATCH" scripts/footpoint_trace.py "$r" "$NPAR" --out-root "$OUT_ROOT" $TRACE_ARGS \
         > "$LOGS/trace_${r}.log" 2>&1 &
 done
 wait
@@ -70,11 +75,11 @@ render_one() {
     local ts="$1" png="$FRAME_DIR/cutaway_$1.png"
     [[ -f "$png" ]] && return 0
     [[ -f "$OUT_ROOT/obj_fp_inner/fieldlines_${ts}.obj" ]] || { echo "no inner OBJ for $ts"; return 0; }
-    "$PV_BATCH" scripts/fp_cutaway.py --ts "$ts" --out-root "$OUT_ROOT" --out "$png" \
+    "$PV_BATCH" scripts/fp_cutaway.py --ts "$ts" --out-root "$OUT_ROOT" --out "$png" $CUTAWAY_ARGS \
         > "$LOGS/cutaway_${ts}.log" 2>&1 || echo "frame $ts failed"
 }
 export -f render_one
-export PV_BATCH OUT_ROOT FRAME_DIR LOGS
+export PV_BATCH OUT_ROOT FRAME_DIR LOGS CUTAWAY_ARGS
 xargs -P "$NPAR" -I{} bash -c 'render_one {}' < "$LOGS/stamps.txt"
 echo "[cutaway] $(ls "$FRAME_DIR"/cutaway_*.png 2>/dev/null | wc -l) frames rendered"
 

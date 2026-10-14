@@ -30,13 +30,17 @@ Every function here works in degrees and Re, and says so in its names.
 """
 
 import math
+import os
 
 from geopack import geopack
 
 # Where the analytic dipole hands off to the numeric BATSRUS trace (Re).
 # Decided by Gabor 2026-09-01: rBody is 2.0 and rCurrents is 2.375, but 2.5
 # is where the full solution (B0 + B1) exists on a reasonably fine grid.
-HANDOFF_RADIUS_RE = 2.5
+# Override with SWMF_HANDOFF_RE in .env: the first BATSRUS cell layer outside
+# rBody carries body fill, so the handoff must sit a few cells above rBody
+# (the April 2010 run has rBody = 2.5 with 1/8 Re cells -> 3.0).
+HANDOFF_RADIUS_RE = float(os.environ.get('SWMF_HANDOFF_RE', '2.5'))
 
 # Field lines start on the Earth's surface. The RBE foot-point latitudes are
 # invariant latitudes referenced to r = 1 Re (checked 2026-08-31: the dipole

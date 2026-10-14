@@ -49,7 +49,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from paraview.simple import (VisItTecplotBinaryReader, TrivialProducer,
-                             ResampleWithDataset, Delete)
+                             ResampleWithDataset, Calculator, Delete)
 from paraview import servermanager as _sm
 from paraview import vtk as pvtk
 
@@ -121,13 +121,24 @@ class RbeFootpointGrid:
 def sample_batsrus_at(plt_path, lattice_points):
     """Resample the BATSRUS arrays we need (B, Status, northern foot point)
     at the lattice points. Returns dict of numpy arrays, one value per point."""
-    reader = producer = resample = None
+    reader = producer = resample = calc_cos = calc_sin = None
     try:
         reader = VisItTecplotBinaryReader(FileName=[plt_path])
         reader.MeshStatus = ['global_field']
         reader.PointArrayStatus = ['B_x_nT', 'B_y_nT', 'B_z_nT', 'Status',
                                    'theta_1_deg', 'phi_1_deg']
         reader.UpdatePipeline()
+        # phi_1 wraps 360 -> 0 at the noon meridian; interpolating it across a
+        # cell straddling the wrap gives ~180 (midnight) for dayside points.
+        # Probe cos/sin instead and rebuild the angle afterwards.
+        calc_cos = Calculator(Input=reader)
+        calc_cos.ResultArrayName = 'phi_1_cos'
+        calc_cos.Function = 'cos(phi_1_deg*0.017453292519943295)'
+        calc_sin = Calculator(Input=calc_cos)
+        calc_sin.ResultArrayName = 'phi_1_sin'
+        calc_sin.Function = 'sin(phi_1_deg*0.017453292519943295)'
+        calc_sin.UpdatePipeline()
+        source = calc_sin
 
         points = pvtk.vtkPoints()
         for x, y, z in lattice_points:
@@ -138,7 +149,7 @@ def sample_batsrus_at(plt_path, lattice_points):
         producer.GetClientSideObject().SetOutput(poly)
         producer.UpdatePipeline()
 
-        resample = ResampleWithDataset(SourceDataArrays=reader,
+        resample = ResampleWithDataset(SourceDataArrays=source,
                                        DestinationMesh=producer)
         resample.UpdatePipeline()
         out = _sm.Fetch(resample)
@@ -150,9 +161,13 @@ def sample_batsrus_at(plt_path, lattice_points):
             arr = pd.GetArray(i)
             arrays[name] = np.array([arr.GetValue(k)
                                      for k in range(arr.GetNumberOfTuples())])
+        if 'phi_1_cos' in arrays and 'phi_1_sin' in arrays:
+            arrays['phi_1_deg_raw'] = arrays['phi_1_deg']
+            arrays['phi_1_deg'] = np.degrees(np.arctan2(arrays['phi_1_sin'],
+                                                        arrays['phi_1_cos'])) % 360.0
         return arrays
     finally:
-        for proxy in (resample, producer, reader):
+        for proxy in (resample, calc_sin, calc_cos, producer, reader):
             if proxy is not None:
                 Delete(proxy)
 
