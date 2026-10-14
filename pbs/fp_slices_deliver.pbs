@@ -1,0 +1,63 @@
+#!/bin/bash
+# Athena (PBS): the CRA slice deliverable for every 3D frame of the run.
+#   per frame   fp_slices.py      24 meridional half-planes about the dipole axis,
+#                                 flux mapped on each plane -> fp_slices/npz + csv
+#   then        fp_slices_csv.py  one CSV per timestamp in the delivery layout
+#                                 (--bands gt2 --drop-zeros) + grid.json sidecar
+# One Turin node, NPAR pvbatch processes at a time; frames whose npz exists are
+# skipped, so a resubmit resumes. Needs .env (SWMF_RUN_DIR, RBE_NPZ, SWMF_BASE_ISO,
+# SWMF_HANDOFF_RE, PV_BATCH, PYTHON) and the npz (pbs/fp_cutaway_movie.pbs makes it).
+#   source slurm/env.sh; mkdir -p run/logs
+#   qsub -q devel -l walltime=01:30:00 -o "$SWMF_VR_ROOT/run/logs/" \
+#        -v NPAR=32,OUT_ROOT=$SWMF_VR_ROOT/run_v4 pbs/fp_slices_deliver.pbs
+#PBS -S /bin/bash
+#PBS -N swmfvr_slices
+#PBS -W group_list=s3007
+#PBS -l select=1:ncpus=256:model=tur_ath
+#PBS -q normal
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -m be
+#PBS -M cdimarco@umich.edu
+
+source /etc/profile >/dev/null 2>&1
+cd "$PBS_O_WORKDIR" || exit 1
+source slurm/env.sh
+set -o pipefail
+PYTHON="${PYTHON:-python3}"
+NPAR="${NPAR:-32}"
+OUT_ROOT="${OUT_ROOT:-$SWMF_VR_ROOT/run}"
+SLICE_ARGS="${SLICE_ARGS:---step 0.1 --extent 10 --n-slices 24 --frame gei --bands gt2 --drop-zeros --no-plot}"
+CSV_ARGS="${CSV_ARGS:---bands gt2 --drop-zeros}"
+CSV_DIR="${CSV_DIR:-$OUT_ROOT/fp_slices/csv_gt2_sparse}"
+LOGS="$OUT_ROOT/logs"
+mkdir -p "$OUT_ROOT/fp_slices" "$LOGS"
+export OMP_NUM_THREADS=2
+echo "node $(hostname)  start $(date)  NPAR=$NPAR  run=$SWMF_RUN_DIR  npz=$RBE_NPZ"
+[[ -f "$RBE_NPZ" ]] || { echo "no npz at $RBE_NPZ -- run pbs/fp_cutaway_movie.pbs first"; exit 1; }
+
+# frames = every non-empty 3D .plt of the run
+ls "$SWMF_RUN_DIR"/GM/IO2/*.plt | sed -E 's/.*e([0-9]{8})-([0-9]{6}).*/\1_\2/' | sort -u > "$LOGS/slice_stamps.txt"
+echo "[slices] $(wc -l < "$LOGS/slice_stamps.txt") frames  $(date)"
+
+slice_one() {
+    local ts="$1"
+    [[ -f "$OUT_ROOT/fp_slices/npz/slices_${ts}.npz" ]] && return 0
+    "$PV_BATCH" scripts/fp_slices.py --ts "$ts" --out-root "$OUT_ROOT" $SLICE_ARGS \
+        > "$LOGS/slices_${ts}.log" 2>&1 || echo "slices $ts failed"
+}
+export -f slice_one
+export PV_BATCH OUT_ROOT LOGS SLICE_ARGS
+xargs -P "$NPAR" -I{} bash -c 'slice_one {}' < "$LOGS/slice_stamps.txt"
+echo "[slices] $(ls "$OUT_ROOT"/fp_slices/npz/slices_*.npz 2>/dev/null | wc -l) npz cubes  $(date)"
+
+# delivery CSVs + grid.json, NPAR shards
+echo "[csv] -> $CSV_DIR  $(date)"
+for ((r = 0; r < NPAR; r++)); do
+    "$PYTHON" scripts/fp_slices_csv.py "$r" "$NPAR" --out-root "$OUT_ROOT" --out-dir "$CSV_DIR" $CSV_ARGS \
+        > "$LOGS/slices_csv_${r}.log" 2>&1 &
+done
+wait
+echo "[csv] $(ls "$CSV_DIR"/slices_*.csv 2>/dev/null | wc -l) files, grid.json: $(ls "$CSV_DIR"/grid.json 2>/dev/null)"
+du -sh "$CSV_DIR"
+echo "done $(date)"

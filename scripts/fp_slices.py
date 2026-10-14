@@ -251,14 +251,14 @@ def main():
 
     base_dt = data.base_datetime(cfg.time.base_iso)
     frame_dt = datetime.datetime.strptime(ts, '%Y%m%d_%H%M%S')
-    t = int(round((frame_dt - base_dt).total_seconds() / 60.0))
+    t = data.frame_index_for(npz, frame_dt, base_dt)   # npz time axis, any cadence
 
     zf = np.load(npz, allow_pickle=True)
     E_lvls = zf['E_lvls']
     sin_grid = np.asarray(zf['alpha_lvls'], dtype=float)
     n_frames = zf['bo'].shape[0]
-    if not (0 <= t < n_frames):
-        zf.close(); print('ts {} -> frame {} out of range'.format(ts, t)); return
+    if t is None or not (0 <= t < n_frames):
+        zf.close(); print('ts {} -> no flux frame ({})'.format(ts, t)); return
     lat_lvls = np.asarray(zf['lat_lvls'], dtype=float)
     mlt_lvls = np.asarray(zf['mlt_lvls'], dtype=float)
     bo_tesla = np.asarray(zf['bo'][t], dtype=float)

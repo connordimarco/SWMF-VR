@@ -1,0 +1,63 @@
+#!/bin/bash
+# Athena (PBS): the OBJ deliverables and the delivery folder.
+#   gei.py             obj_fp_{inner,outer,danger} -> *_gei + gsm_transforms_fp.csv
+#   fp_cutaway_obj.py  cutaway OBJ package (GEI) for each timestamp in OBJ_TS
+#   make_delivery.py   assemble deliver_<tag>/ (CSVs, grid.json, OBJ packages,
+#                      movies, README, MANIFEST)
+# Needs the cutaway pipeline outputs in OUT_ROOT (pbs/fp_cutaway_movie.pbs) and
+# the slices (pbs/fp_slices_deliver.pbs; submit this one with
+# -W depend=afterok:<slices job>).
+#   qsub -q devel -l walltime=01:00:00 -o "$SWMF_VR_ROOT/run/logs/" \
+#        -v OUT_ROOT=$SWMF_VR_ROOT/run_v4,DELIVER_TAG=20261014 pbs/fp_deliverables.pbs
+#PBS -S /bin/bash
+#PBS -N swmfvr_deliver
+#PBS -W group_list=s3007
+#PBS -l select=1:ncpus=256:model=tur_ath
+#PBS -q normal
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#PBS -m be
+#PBS -M cdimarco@umich.edu
+
+source /etc/profile >/dev/null 2>&1
+cd "$PBS_O_WORKDIR" || exit 1
+source slurm/env.sh
+set -o pipefail
+PYTHON="${PYTHON:-python3}"
+OUT_ROOT="${OUT_ROOT:-$SWMF_VR_ROOT/run}"
+# cutaway OBJ packages: default = a spread through the storm (edit for the run)
+OBJ_TS="${OBJ_TS:-20100405_180000 20100406_000000 20100406_060000 20100406_120000 20100406_180000}"
+OBJ_ARGS="${OBJ_ARGS:---frame gei --flux-min 1e1 --flux-max 1e8}"
+DELIVER_TAG="${DELIVER_TAG:-$(date +%Y%m%d)}"
+MOVIES="${MOVIES:-$OUT_ROOT/fp_cutaway_1e8.mp4 $OUT_ROOT/fp_cutaway_1e8_720p.mp4}"
+# settings the README records (defaults = what the other PBS jobs use)
+export SEED_ARGS="${SEED_ARGS:---threshold-inner 1000 --threshold-outer 1000 --smooth-mlt 5}"
+export TRACE_ARGS="${TRACE_ARGS:---apex-max 8}"
+export CUTAWAY_ARGS="${CUTAWAY_ARGS:---flux-min 1e1 --flux-max 1e8}"
+export SLICE_ARGS="${SLICE_ARGS:---step 0.1 --extent 10 --n-slices 24 --frame gei --bands gt2 --drop-zeros}"
+export CSV_ARGS="${CSV_ARGS:---bands gt2 --drop-zeros}"
+LOGS="$OUT_ROOT/logs"
+mkdir -p "$LOGS"
+echo "node $(hostname)  start $(date)  out=$OUT_ROOT"
+
+# 1. GEI field lines + per-frame rotation matrices
+for s in inner outer danger; do
+    if [[ -d "$OUT_ROOT/obj_fp_$s" ]]; then
+        tr=""; [[ "$s" == outer ]] && tr="--transforms $OUT_ROOT/gsm_transforms_fp.csv"
+        "$PYTHON" scripts/gei.py --obj-dir "$OUT_ROOT/obj_fp_$s" --out-dir "$OUT_ROOT/obj_fp_${s}_gei" $tr \
+            > "$LOGS/gei_$s.log" 2>&1 && echo "[gei] $s: $(ls "$OUT_ROOT"/obj_fp_${s}_gei/*.obj | wc -l) OBJ"
+    fi
+done
+
+# 2. cutaway OBJ packages (one dir per timestamp under cutaway_obj_gei/)
+for ts in $OBJ_TS; do
+    [[ -f "$OUT_ROOT/obj_fp_outer/fieldlines_${ts}.obj" ]] || { echo "[obj] no shells for $ts -- skip"; continue; }
+    [[ -d "$OUT_ROOT/cutaway_obj_gei/$ts" ]] && { echo "[obj] $ts exists"; continue; }
+    "$PV_BATCH" scripts/fp_cutaway_obj.py --ts "$ts" --out-root "$OUT_ROOT" $OBJ_ARGS \
+        > "$LOGS/cutaway_obj_${ts}.log" 2>&1 && echo "[obj] $ts done" || echo "[obj] $ts failed"
+done
+
+# 3. delivery folder
+"$PYTHON" scripts/make_delivery.py --out-root "$OUT_ROOT" --tag "$DELIVER_TAG" \
+    --movies $MOVIES --obj-ts $OBJ_TS 2>&1 | tail -20
+echo "done $(date)"
