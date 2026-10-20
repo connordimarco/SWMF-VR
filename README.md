@@ -25,6 +25,7 @@ radius, `pvbatch`/`ffmpeg`/Python paths. `source slurm/env.sh` before anything.
 - Athena (PBS): `pbs/`. In order: `fp_cutaway_movie.pbs`, `fp_slices_deliver.pbs`,
   `fp_deliverables.pbs`. Each header has its `qsub` line and `-v` knobs.
 - Great Lakes (Slurm): `slurm/`. Same stages as job arrays; see each header.
+- Slice resolution: `-v STEP=0.025,NSLICES=72` on `fp_slices_deliver.pbs` (default 0.1 Re, 24 cuts).
 
 ## Conventions
 
