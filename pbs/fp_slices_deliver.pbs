@@ -10,6 +10,11 @@
 #   source slurm/env.sh; mkdir -p run/logs
 #   qsub -q devel -l walltime=01:30:00 -o "$SWMF_VR_ROOT/run/logs/" \
 #        -v NPAR=32,OUT_ROOT=$SWMF_VR_ROOT/run_v4 pbs/fp_slices_deliver.pbs
+# Knobs (-v): STEP (0.1 Re), NSLICES (24), FRAMES (file of timestamps; default all
+# .plt frames), NPAR, OUT_ROOT, CSV_DIR, SLICE_ARGS/CSV_ARGS (override everything).
+# Hi-res (STEP=0.025,NSLICES=72: 23M points, ~120 MB CSV per frame) -- set
+# CSV_DIR=$OUT_ROOT/fp_slices/csv so the slicer's own CSVs are the delivery set and
+# the CSV pass only adds grid.json + gsm_transforms_fp.csv; NPAR is memory-bound.
 #PBS -S /bin/bash
 #PBS -N swmfvr_slices
 #PBS -W group_list=s3007
@@ -27,7 +32,9 @@ set -o pipefail
 PYTHON="${PYTHON:-python3}"
 NPAR="${NPAR:-32}"
 OUT_ROOT="${OUT_ROOT:-$SWMF_VR_ROOT/run}"
-SLICE_ARGS="${SLICE_ARGS:---step 0.1 --extent 10 --n-slices 24 --frame gei --bands gt2 --drop-zeros --no-plot}"
+STEP="${STEP:-0.1}"
+NSLICES="${NSLICES:-24}"
+SLICE_ARGS="${SLICE_ARGS:---step $STEP --extent 10 --n-slices $NSLICES --frame gei --bands gt2 --drop-zeros --no-plot}"
 CSV_ARGS="${CSV_ARGS:---bands gt2 --drop-zeros}"
 CSV_DIR="${CSV_DIR:-$OUT_ROOT/fp_slices/csv_gt2_sparse}"
 LOGS="$OUT_ROOT/logs"
@@ -36,8 +43,12 @@ export OMP_NUM_THREADS=2
 echo "node $(hostname)  start $(date)  NPAR=$NPAR  run=$SWMF_RUN_DIR  npz=$RBE_NPZ"
 [[ -f "$RBE_NPZ" ]] || { echo "no npz at $RBE_NPZ -- run pbs/fp_cutaway_movie.pbs first"; exit 1; }
 
-# frames = every non-empty 3D .plt of the run
-ls "$SWMF_RUN_DIR"/GM/IO2/*.plt | sed -E 's/.*e([0-9]{8})-([0-9]{6}).*/\1_\2/' | sort -u > "$LOGS/slice_stamps.txt"
+# frames = FRAMES if given, else every non-empty 3D .plt of the run
+if [[ -n "${FRAMES:-}" ]]; then
+    cp "$FRAMES" "$LOGS/slice_stamps.txt"
+else
+    ls "$SWMF_RUN_DIR"/GM/IO2/*.plt | sed -E 's/.*e([0-9]{8})-([0-9]{6}).*/\1_\2/' | sort -u > "$LOGS/slice_stamps.txt"
+fi
 echo "[slices] $(wc -l < "$LOGS/slice_stamps.txt") frames  $(date)"
 
 slice_one() {

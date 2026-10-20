@@ -17,6 +17,9 @@ column, all three flux bands, zeros written. Typical delivery for the VR app
           --out-dir run/fp_slices/csv_gt2_sparse
 
 RANK SIZE shard the frame list for a SLURM array (slurm/fp_slices_csv_array.sh).
+Also writes grid.json and (rank 0) gsm_transforms_fp.csv for every npz frame into
+the CSV directory; existing CSVs are skipped, so pointing --out-dir at the
+slicer's own csv/ writes just those two sidecars.
 """
 
 import os
@@ -87,6 +90,10 @@ def main():
                         np.asarray(d0['z_re'], dtype=float),
                         gj_frame, str(d0['quantity']),
                         bands, args.drop_zeros, str(d0['axis']), bbox)
+        # per-frame GSM -> GEO/GEI matrices beside grid.json, every frame (Mike 2026-10-16)
+        if args.rank == 0:
+            frames.write_transforms_csv(os.path.join(out_dir, 'gsm_transforms_fp.csv'),
+                                        [datetime.datetime.strptime(t, '%Y%m%d_%H%M%S') for t in all_ts])
 
     t0 = time.time(); n_done = 0
     for f in npz_files:

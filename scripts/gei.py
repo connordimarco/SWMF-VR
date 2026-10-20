@@ -37,25 +37,15 @@ def main():
     if not objs:
         print('no fieldlines_*.obj in {}'.format(obj_dir)); return
 
-    geo = ['R_geo_{}{}'.format(r, c) for r in range(3) for c in range(3)]
-    gei = ['R_gei_{}{}'.format(r, c) for r in range(3) for c in range(3)]
-    header = ['timestamp', 'unix_epoch'] + geo + gei + ['dipole_gei_x', 'dipole_gei_y', 'dipole_gei_z']
-    rows = []
+    dts = []
 
     for obj in objs:
         dt = data.parse_obj_timestamp(obj)
         if dt is None:
             continue
-        ut = frames.recalc_for(dt)
+        frames.recalc_for(dt)
         data.transform_obj(obj, os.path.join(out_dir, os.path.basename(obj)), frames.gsm_to_gei)
-        if args.transforms:
-            R_geo = frames.rotation_matrix(frames.gsm_to_geo)
-            R_gei = frames.rotation_matrix(frames.gsm_to_gei)
-            row = [dt.strftime('%Y%m%d_%H%M%S'), '{:.1f}'.format(ut)]
-            row += ['{:.10f}'.format(v) for v in R_geo.ravel()]
-            row += ['{:.10f}'.format(v) for v in R_gei.ravel()]
-            row += ['{:.10f}'.format(v) for v in frames.dipole_gei()]
-            rows.append(row)
+        dts.append(dt)
 
     if not args.no_copy_assets:
         for name in ('ramp.png', 'material.mtl', 'colormap.json'):
@@ -63,12 +53,9 @@ def main():
             if os.path.exists(src):
                 shutil.copy2(src, os.path.join(out_dir, name))
 
-    if args.transforms and rows:
-        with open(args.transforms, 'w') as f:
-            f.write(','.join(header) + '\n')
-            for row in rows:
-                f.write(','.join(row) + '\n')
-        print('wrote {} matrix rows -> {}'.format(len(rows), args.transforms))
+    if args.transforms and dts:
+        frames.write_transforms_csv(args.transforms, dts)
+        print('wrote {} matrix rows -> {}'.format(len(dts), args.transforms))
     print('GEI: {} objs -> {}'.format(len(objs), out_dir))
 
 

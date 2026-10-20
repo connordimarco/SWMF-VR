@@ -315,7 +315,7 @@ def main():
         write_slices_csv(out_csv, azimuths, rho, z, cube, R_out,
                          args.frame, ts, args.quantity, bands, args.drop_zeros)
 
-    np.savez(out_npz, cube=cube, bratio=bratio_cube, azimuths_deg=azimuths.astype(np.float32),
+    np.savez_compressed(out_npz, cube=cube, bratio=bratio_cube, azimuths_deg=azimuths.astype(np.float32),
              rho_re=rho.astype(np.float32), z_re=z.astype(np.float32),
              labels=BAND_LABELS, ts=ts, quantity=args.quantity,
              step=args.step, extent=args.extent, axis='SM_dipole', frame=args.frame)

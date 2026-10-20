@@ -41,6 +41,30 @@ def dipole_gei():
     return geopack.geigeo(d[0], d[1], d[2], -1)
 
 
+TRANSFORM_HEADER = (['timestamp', 'unix_epoch']
+                    + ['R_geo_{}{}'.format(r, c) for r in range(3) for c in range(3)]
+                    + ['R_gei_{}{}'.format(r, c) for r in range(3) for c in range(3)]
+                    + ['dipole_gei_x', 'dipole_gei_y', 'dipole_gei_z'])
+
+
+def transform_row(dt):
+    """One gsm_transforms_fp.csv row for frame dt: timestamp, unix time, R_geo,
+    R_gei (GSM -> target, row-major) and the dipole axis in GEI. Calls recalc_for."""
+    ut = recalc_for(dt)
+    row = [dt.strftime('%Y%m%d_%H%M%S'), '{:.1f}'.format(ut)]
+    row += ['{:.10f}'.format(v) for v in rotation_matrix(gsm_to_geo).ravel()]
+    row += ['{:.10f}'.format(v) for v in rotation_matrix(gsm_to_gei).ravel()]
+    row += ['{:.10f}'.format(v) for v in dipole_gei()]
+    return row
+
+
+def write_transforms_csv(path, dts):
+    with open(path, 'w') as f:
+        f.write(','.join(TRANSFORM_HEADER) + '\n')
+        for dt in dts:
+            f.write(','.join(transform_row(dt)) + '\n')
+
+
 def transform_fn_for(target):
     if target == 'geo':
         return gsm_to_geo
